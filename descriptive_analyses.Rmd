@@ -1,0 +1,163 @@
+---
+title: "Descriptives"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script provides a summary of the descriptive characteristics of the participants (i.e., demographics) and the event (e.g., cause of anger, ease of remembering).
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#the percentage function
+  percentage <- function(var, includeNA = TRUE, arran = TRUE) {
+      tabb <- table(var) %>% as.data.frame()
+    
+          if (includeNA == TRUE) {
+               tabb$percentage <- (tabb$Freq * 100 / length(var))
+          } else {
+                tabb$percentage <- (tabb$Freq * 100 / sum(tabb$Freq))
+          }
+      
+      colnames(tabb)[1] <- c("category")
+      
+          if (arran == FALSE) {
+                knitr::kable(tabb)
+            } else {
+                tabb %>% arrange(desc(percentage)) %>% knitr::kable()
+            }
+}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, factor-setup}
+# gender
+  df$gender <- factor(df$gender)
+
+    levels(df$gender) <- c("female", "male" ,"nonbinary", "self-describe", "prefer not to say", NA)
+# race/ethnicity
+  df$ethnicity <- factor(df$ethnicity)
+    
+    levels(df$ethnicity) <- c(
+        "American Indian or Alaska Native",
+        "Asian",
+        "Black or African American",
+        "Hispanic, Latinx or Spanish Origin",
+        "Middle Eastern or North African",
+        "Native Hawaiian or Other Pacific Islander",
+        "White",
+        "Some other ethnicity or origin, please specify:",
+        "I prefer not to answer.",
+        "Multiracial",
+        NA
+    )
+# person/entity who caused anger
+    df$who_caused <- factor(df$who_caused)
+    
+    levels(df$who_caused) <- c(
+        "romantic partner",
+        "parent",
+        "sibling",
+        "child",
+        "close friend",
+        "coworker",
+        "classmate",
+        "acquintance",
+        "teacher",
+        "boss",
+        "stranger",
+        "public figure",
+        "corporation/organization",
+        "other",
+        NA
+    )
+  #we can search for the word "roommate" for people who reported "other" as cause
+  df <- df %>% 
+            mutate(who_caused2 = if_else(who_caused == "other" & grepl("roommate", right_narrative), "roommate",
+                                         if_else(who_caused == "other" & grepl("roommate", nonright_narrative), "roommate",
+                                                 as.character(who_caused)))
+                   )
+    
+  
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+
+# Demographics
+
+```{r}
+# age
+  psych::describe(as.numeric(df$age))
+
+# gender
+    table(df$gender, useNA = "ifany")
+    percentage(df$gender)
+    #participants who self-described:
+    table(df$gender_other)
+
+# race-ethnicity
+    table(df$ethnicity, useNA = "ifany")
+    percentage(df$ethnicity)
+    #participants who self-described:
+    table(df$ethnicity_other)
+```
+
+# Person/Entity who Caused Anger
+
+```{r}
+    table(df1$who_caused2, useNA = "ifany")
+    percentage(df1$who_caused2) 
+ 
+```
+
+# Ease of remembering
+
+```{r}
+psych::describeBy(df1$ease_remember, group = df1$Condition)
+
+#difference between the two conditions
+  t.test(ease_remember ~ Condition, data = df1)
+  effectsize::cohens_d(ease_remember ~ Condition, data = df1)
+
+  
+  df1 %>% 
+    ggplot(aes(x = ease_remember, colour = Condition, fill = Condition)) +
+    geom_histogram(alpha=0.4, position="dodge", binwidth = .4) +
+    labs(x = "How easy was it for you to remember this incident?") +
+    theme_minimal()
+    
+
+```
+
