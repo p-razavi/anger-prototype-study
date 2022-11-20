@@ -106,6 +106,9 @@ knitr::opts_chunk$set(echo = TRUE)
   levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
   levels(df$Condition) <- c("justified", "nonjustified", NA)
 
+#Number of participants
+  table(df$NarrativeRelevant)
+  
 #drop cases following preregistration
   df1 <- df %>% 
     filter(NarrativeWritten != "No") %>% 
@@ -120,31 +123,51 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 # age
   psych::describe(as.numeric(df$age))
+  psych::describe(as.numeric(df1$age))
 
 # gender
-    table(df$gender, useNA = "ifany")
-    percentage(df$gender)
+    table(df1$gender, useNA = "ifany")
+    percentage(df1$gender, includeNA = FALSE)
     #participants who self-described:
-    table(df$gender_other)
+    table(df1$gender_other)
 
 # race-ethnicity
-    table(df$ethnicity, useNA = "ifany")
-    percentage(df$ethnicity)
+    table(df1$ethnicity, useNA = "ifany")
+    percentage(df1$ethnicity, includeNA = FALSE)
     #participants who self-described:
-    table(df$ethnicity_other)
+    table(df1$ethnicity_other)
 ```
 
 # Person/Entity who Caused Anger
 
 ```{r}
+#overal
     table(df1$who_caused2, useNA = "ifany")
-    percentage(df1$who_caused2) 
- 
+    percentage(df1$who_caused2, includeNA = FALSE) 
+
+#for each condition
+  cause_summary <- df1 %>% 
+                      group_by(Condition, who_caused2) %>% 
+                      summarise(n = n()) %>% 
+                      pivot_wider(names_from = Condition,
+                                  values_from = n) %>% 
+                      mutate(justified_perc = round(justified * 100 / sum(justified), 2),
+                             unjustified_perc = round(nonjustified * 100 / sum(nonjustified, na.rm = TRUE), 2),
+                             overl_freq = justified + nonjustified,
+                             overall_perc = round(overl_freq * 100 / sum(overl_freq, na.rm = TRUE), 2)) %>% 
+                      arrange(desc(overl_freq))
+
+  cause_summary %>% knitr::kable()    
+
+#write.csv(cause_summary, "who_caused_anger_table.csv")
+
 ```
 
 # Ease of remembering
 
 ```{r}
+#descriptives
+psych::describe(df1$ease_remember)
 psych::describeBy(df1$ease_remember, group = df1$Condition)
 
 #difference between the two conditions
