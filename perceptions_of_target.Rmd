@@ -1,0 +1,369 @@
+---
+title: "Analyses of the Perceptions of the Person/Entity who Caused Anger"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script represents the test of the hypotheses about the person or entity that caused the participant to experience anger, and how the different aspects of the behavior vary between justified and unjustified anger prototypes.
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2", "MetBrewer")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#Function to report correlation
+cor_report <- function(cor_output) {
+          r <- cor_output[["estimate"]] %>% round(2)
+          df <- cor_output[["parameter"]] %>% round(1)
+          ci_lb <- (cor_output[["conf.int"]])[1] %>% round(2)
+          ci_ub <- (cor_output[["conf.int"]])[2] %>% round(2)
+          original_p <- cor_output[["p.value"]] %>% round(3)
+          p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+          
+          print(paste0("r(", df, ") = ", r, " [", ci_lb, ", ", ci_ub, "], p ", p))
+    }
+
+#Function to report independent-samples t-test
+  ind_ttest_report <- function(iv, dv) {
+      ttest <- t.test(dv ~ iv)
+      effect_size <- effectsize::cohens_d(dv ~ iv, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to report paired-samples t-test
+    paired_ttest_report <- function(t1, t2) {
+      ttest <- t.test(Pair(t1, t2) ~ 1)
+      effect_size <- effectsize::cohens_d(Pair(t1, t2) ~ 1, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+  
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+# Causal Attribution
+
+**Hypothesis:** In anger events that are perceived as justified (compared to the unjustified ones), participants are more likely to consider the cause of anger to stem from the target’s internal and stable characteristics (as opposed to the external and changeable circumstances).
+
+```{r, causal-attr}
+#First, test the correlation between the two items: 
+cor.test(df1$cause_circumst, df1$behave_same) %>% cor_report()
+
+
+#Since the items are not strongly correlated, a composite score will not be created. Conditions will be compared for each item separately:
+  #cause: internal vs. external 
+    df1 %>% 
+        t.test(cause_circumst ~ Condition, data = .)
+    df1 %>% 
+        effectsize::cohens_d(cause_circumst ~ Condition, data = .)
+    #For reporting:
+      ind_ttest_report(df1$Condition, df1$cause_circumst)
+    
+  #cause: stable vs. the same 
+    df1 %>% 
+        t.test(behave_same ~ Condition, data = .)
+    df1 %>% 
+        effectsize::cohens_d(behave_same ~ Condition, data = .)
+    #For reporting
+      ind_ttest_report(df1$Condition, df1$behave_same)
+
+```
+
+### Moral Character
+
+**Hypothesis:** In anger events perceived as justified (compared to the unjustified ones), the target is more likely to be seen as having weaker moral and ethical values. 
+
+```{r, moral-char}
+#create the morality composite score using the 10 items from Walker & Pitts (1998) 
+
+  df_morality <- df1 %>% 
+                    select(ResponseId, Condition, starts_with("wp_"), gw_honest, gw_principled)
+
+  keys.list <- list(highly_moral=c("wp_concerned_right","wp_faithful","wp_clear_values", "wp_lawabiding", 
+                                   "wp_strong_beliefs", "wp_distinguishes", "wp_dev_conscience", "wp_ethical", 
+                                   "gw_honest", "gw_principled"))
+
+  morality_scores <- psych::scoreItems(keys.list, df_morality)
+  morality_scores
+  df_morality <- cbind(df_morality, morality_scores$scores)
+
+#Compare conditions
+    df_morality %>% 
+        t.test(highly_moral ~ Condition, data = .)
+    df_morality %>% 
+        effectsize::cohens_d(highly_moral ~ Condition, data = .)
+      #For reporting
+          ind_ttest_report(df_morality$Condition, df_morality$highly_moral)
+```
+
+# Moral-Relational Judgments
+
+**Research Question:** What are the differences between justified vs. unjustified anger in terms of the moral-relational judgments of the target (as measured using Goodwin et al.'s [2014] trait characteristic items)? <br>
+
+Goodwin et al. (2014) demonstrate that judgments of morality and warmth are separable and can provide unique informational value for person perception. To examine the perceptions of the target along these two critical dimensions, dimensionality reduction analysis (i.e., PCA) will be conducted on the character judgments from Goodwin et al. (2014). <br>
+
+The number of components will be decided based on the scree plot, parallel analysis, and Velicor's MAP. If multiple alternative solutions are suggested by these methods, PCA will be conducted for all the alternatives number of components, and the optimal solution will be chosen based on component interpretability. <br>
+
+## Component Structure
+
+```{r, moral-relational-pca}
+df_moral_relational <- df1 %>% 
+                    select(ResponseId, Condition, starts_with("gw_"))
+
+#To make a decision about the number of components
+  #scree plot
+  df_moral_relational %>% 
+    select(starts_with("gw_")) %>% 
+    psych::scree(hline = -1) #4 components
+  
+  #parallel analysis
+  df_moral_relational %>% 
+    select(starts_with("gw_")) %>% 
+    psych::fa.parallel() #3 components
+  
+  #Velicor's MAP
+  df_moral_relational %>% 
+    select(starts_with("gw_")) %>% 
+    psych::nfactors(n = 32) #4 components
+
+
+#PCA with 3 components (based on the outcome of the parallel analyses)
+  pca_3_component <- df_moral_relational %>% 
+                        select(starts_with("gw_")) %>%  
+                        psych::principal(., nfactors = 3, rotate = "varimax") 
+        
+  three_comp_outcome <- psych::kaiser(pca_3_component, rotate = "Varimax") %>% psych::fa.sort()
+
+  three_comp_outcome[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = F)
+
+  #This solution has a large proportion of cross-loading items, especially on the 2nd and 3rd components.
+  
+#PCA with 4 components (based on the outcome of the scree plot and the Velicor's MAP)
+  pca_4_component <- df_moral_relational %>% 
+                        select(starts_with("gw_")) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome <- psych::kaiser(pca_4_component, rotate = "Varimax") %>% psych::fa.sort()
+
+  four_comp_outcome[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = F)  
+  
+  
+  #find the cross-loading items
+  four_comp_outcome[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    mutate(RC1_RC2 = if_else(abs(RC1-RC2) > .1, " ", "*CL*"),
+                           RC1_RC3 = if_else(abs(RC1-RC3) > .1, " ", "*CL*"),
+                           RC1_RC4 = if_else(abs(RC1-RC4) > .1, " ", "*CL*"),
+                           RC2_RC3 = if_else(abs(RC2-RC3) > .1, " ", "*CL*"),
+                           RC2_RC4 = if_else(abs(RC2-RC4) > .1, " ", "*CL*"),
+                           RC3_RC4 = if_else(abs(RC3-RC4) > .1, " ", "*CL*")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = T) 
+  
+  #"Principled" has the strongest cross-loading. It will be dropped before the next iteration.
+  pca_4_component_i2 <- df_moral_relational %>% 
+                        select(starts_with("gw_"), -gw_principled) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i2 <- psych::kaiser(pca_4_component_i2, rotate = "Varimax") %>% psych::fa.sort()
+  
+  four_comp_outcome_i2[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    mutate(RC1_RC2 = if_else(abs(RC1-RC2) > .1, " ", "*CL*"),
+                           RC1_RC3 = if_else(abs(RC1-RC3) > .1, " ", "*CL*"),
+                           RC1_RC4 = if_else(abs(RC1-RC4) > .1, " ", "*CL*"),
+                           RC2_RC3 = if_else(abs(RC2-RC3) > .1, " ", "*CL*"),
+                           RC2_RC4 = if_else(abs(RC2-RC4) > .1, " ", "*CL*"),
+                           RC3_RC4 = if_else(abs(RC3-RC4) > .1, " ", "*CL*")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = T) 
+  
+  #"Courageous" has the strongest cross-loading. It will be dropped before the next iteration.
+  pca_4_component_i3 <- df_moral_relational %>% 
+                        select(starts_with("gw_"), -gw_principled, -gw_courageous) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i3 <- psych::kaiser(pca_4_component_i3, rotate = "Varimax") %>% psych::fa.sort()
+  
+  four_comp_outcome_i3[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    mutate(RC1_RC2 = if_else(abs(RC1-RC2) > .1, " ", "*CL*"),
+                           RC1_RC3 = if_else(abs(RC1-RC3) > .1, " ", "*CL*"),
+                           RC1_RC4 = if_else(abs(RC1-RC4) > .1, " ", "*CL*"),
+                           RC2_RC3 = if_else(abs(RC2-RC3) > .1, " ", "*CL*"),
+                           RC2_RC4 = if_else(abs(RC2-RC4) > .1, " ", "*CL*"),
+                           RC3_RC4 = if_else(abs(RC3-RC4) > .1, " ", "*CL*")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = T) 
+  
+  #"Warm" has the strongest cross-loading. It will be dropped before the next iteration.
+  pca_4_component_i4 <- df_moral_relational %>% 
+                        select(starts_with("gw_"), -gw_principled, -gw_courageous, -gw_warm) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i4 <- psych::kaiser(pca_4_component_i4, rotate = "Varimax") %>% psych::fa.sort()
+  
+  four_comp_outcome_i4[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    mutate(RC1_RC2 = if_else(abs(RC1-RC2) > .1, " ", "*CL*"),
+                           RC1_RC3 = if_else(abs(RC1-RC3) > .1, " ", "*CL*"),
+                           RC1_RC4 = if_else(abs(RC1-RC4) > .1, " ", "*CL*"),
+                           RC2_RC3 = if_else(abs(RC2-RC3) > .1, " ", "*CL*"),
+                           RC2_RC4 = if_else(abs(RC2-RC4) > .1, " ", "*CL*"),
+                           RC3_RC4 = if_else(abs(RC3-RC4) > .1, " ", "*CL*")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = T) 
+  #"Agreeable" is the only cross-loading item. It will be dropped before the next iteration.
+  pca_4_component_i5 <- df_moral_relational %>% 
+                        select(starts_with("gw_"), -gw_principled, -gw_courageous, -gw_warm, -gw_agreeable) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i5 <- psych::kaiser(pca_4_component_i5, rotate = "Varimax") %>% psych::fa.sort()
+  
+  four_comp_outcome_i5[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    mutate(RC1_RC2 = if_else(abs(RC1-RC2) > .1, " ", "*CL*"),
+                           RC1_RC3 = if_else(abs(RC1-RC3) > .1, " ", "*CL*"),
+                           RC1_RC4 = if_else(abs(RC1-RC4) > .1, " ", "*CL*"),
+                           RC2_RC3 = if_else(abs(RC2-RC3) > .1, " ", "*CL*"),
+                           RC2_RC4 = if_else(abs(RC2-RC4) > .1, " ", "*CL*"),
+                           RC3_RC4 = if_else(abs(RC3-RC4) > .1, " ", "*CL*")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = T) 
+
+```
+
+Based on the PCA results, scale scores will be created. 
+
+```{r, mora;-relational-scores}
+  keys.list <- list(communal=c("gw_trustworthy","gw_empathetic","gw_kind","gw_forgiving","gw_fair","gw_humble","gw_loyal","gw_giving","gw_grateful","gw_just","gw_honest","gw_cooperative","gw_helpful"),
+                    sociable=c("gw_sociable","gw_enthusiastic","gw_happy","gw_playful","gw_easygoing","gw_funny","gw_athletic"),
+                    smart=c("gw_organized","gw_logical","gw_responsible","gw_intelligent","gw_clever"),
+                    creative=c("gw_musical","gw_creative","gw_innovative"))
+
+  moral_relation_scores <- psych::scoreItems(keys.list, df_moral_relational)
+  moral_relation_scores
+  df_moral_relational <- cbind(df_moral_relational, moral_relation_scores$scores)
+  
+  #The 3 lines below will save the APA-style correlation table in a word document:
+  #df_moral_relational %>% 
+  #  select(communal, sociable, smart, creative) %>% 
+  #  apaTables::apa.cor.table(.,filename = "moral_relational_cor.doc", table.number = 1, show.conf.interval = T)
+```
+
+## Comparison of Anger Variants
+
+```{r, moral-relational-compare}
+#Communal
+    df_moral_relational %>% 
+        t.test(communal ~ Condition, data = .)
+    df_moral_relational %>% 
+        effectsize::cohens_d(communal ~ Condition, data = .)
+    #For reporting
+    ind_ttest_report(df_moral_relational$Condition, df_moral_relational$communal)
+
+#Sociable
+    df_moral_relational %>% 
+        t.test(sociable ~ Condition, data = .)
+    df_moral_relational %>% 
+        effectsize::cohens_d(sociable ~ Condition, data = .)
+    #For reporting
+    ind_ttest_report(df_moral_relational$Condition, df_moral_relational$sociable)
+
+#Smart
+    df_moral_relational %>% 
+        t.test(smart ~ Condition, data = .)
+    df_moral_relational %>% 
+        effectsize::cohens_d(smart ~ Condition, data = .)
+    #For reporting
+    ind_ttest_report(df_moral_relational$Condition, df_moral_relational$smart)
+    
+#Creative
+    df_moral_relational %>% 
+        t.test(creative ~ Condition, data = .)
+    df_moral_relational %>% 
+        effectsize::cohens_d(creative ~ Condition, data = .)
+    #For reporting
+    ind_ttest_report(df_moral_relational$Condition, df_moral_relational$creative)    
+
+
+```
+
