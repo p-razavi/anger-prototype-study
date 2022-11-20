@@ -1,0 +1,280 @@
+---
+title: "Analyses of the Perceptions of the Behavior that Led to Anger"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script represents the test of the hypotheses about the behavior that caused the participant to experience anger, and how the different aspects of the behavior vary between justified and unjustified anger prototypes.
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2", "MetBrewer")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#Function to report correlation
+cor_report <- function(cor_output) {
+          r <- cor_output[["estimate"]] %>% round(2)
+          df <- cor_output[["parameter"]] %>% round(1)
+          ci_lb <- (cor_output[["conf.int"]])[1] %>% round(2)
+          ci_ub <- (cor_output[["conf.int"]])[2] %>% round(2)
+          original_p <- cor_output[["p.value"]] %>% round(3)
+          p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+          
+          print(paste0("r(", df, ") = ", r, " [", ci_lb, ", ", ci_ub, "], p ", p))
+    }
+
+#Function to report independent-samples t-test
+  ind_ttest_report <- function(iv, dv) {
+      ttest <- t.test(dv ~ iv)
+      effect_size <- effectsize::cohens_d(dv ~ iv, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to report paired-samples t-test
+    paired_ttest_report <- function(t1, t2) {
+      ttest <- t.test(Pair(t1, t2) ~ 1)
+      effect_size <- effectsize::cohens_d(Pair(t1, t2) ~ 1, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+  
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+
+# Harm and threat
+
+**Hypothesis 1:** Justified anger events (compared to the unjustified ones) involve a stronger perception of harm and threat to the self and to others.
+
+**Hypothesis 2:** The difference between justified and unjustified anger in terms of perceptions of harm or threat is moderated by the target of harm, such that this difference is larger for harm to others (vs. harm to self). 
+
+## Analyses 
+
+```{r, harm-threat}
+#First, examine the correlation between the 2 items for threat/harm to self and the 2 items for threat/harm to other. If r > .5, create composite scores by averaging the 2 items for each variable. 
+
+  cor.test(df1$harm_you, df1$threat_you) %>% cor_report()
+  cor.test(df1$harm_others, df1$threat_others) %>% cor_report()
+  
+#Since the items are strongly correlated (r > .5), we create 2 composites:
+
+  #create the dataframe
+  harm_threat_df <- df1 %>% 
+                        select(ResponseId, Condition, harm_you, harm_others, threat_you, threat_others) %>% 
+                        mutate(harm.threat_self = ((harm_you + threat_you) / 2),
+                               harm.threat_other = ((harm_others + threat_others) / 2))
+  
+  #create a long dataframe
+  harm_threat_df_long <- harm_threat_df %>% 
+                              tidyr::pivot_longer(cols = c(harm.threat_self, harm.threat_other),
+                                                  names_to = "target",
+                                                  names_prefix = "harm.threat_",
+                                                  values_to = "harm")
+
+#The model: 
+  #the main effect of type of anger (i.e., condition) corresponds to Hypothesis 1
+  #the interaction effect corresponds to Hypothesis 2
+  
+  harm_threat_df_long %>% 
+    rstatix::anova_test(data = .,
+                        dv = harm,
+                        wid = ResponseId,
+                        between = Condition,
+                        within = target) %>% 
+    rstatix::get_anova_table()
+
+
+#The difference between the two conditions in terms of harm/threat to self:
+  t.test(harm.threat_self ~ Condition, data = harm_threat_df)
+  effectsize::cohens_d(harm.threat_self ~ Condition, data = harm_threat_df)
+  #For reporting: 
+  ind_ttest_report(harm_threat_df$Condition, harm_threat_df$harm.threat_self)
+
+#The difference between the two conditions in terms of harm/threat to others:
+  t.test(harm.threat_other ~ Condition, data = harm_threat_df)
+  effectsize::cohens_d(harm.threat_other ~ Condition, data = harm_threat_df)
+  #For reporting: 
+  ind_ttest_report(harm_threat_df$Condition, harm_threat_df$harm.threat_other)
+
+```
+
+## Figure
+
+```{r, harm-threat-fig, fig.align='center', fig.width=5}
+
+#getting mean and se for the graph
+      descripts <- psych::describeBy(harm_threat_df_long$harm, 
+                         group = list(harm_threat_df_long$Condition, harm_threat_df_long$target), mat = TRUE)   %>% 
+                        select(group1, group2, mean, se) %>% 
+                        transmute(Anger = as.factor(group1),
+                                  Target = as.factor(group2),
+                                  mean, se)
+      levels(descripts$Anger) <- c("Justified", "Unjustified")
+      levels(descripts$Target) <- c("Other", "Self")
+      
+#interaction plot - dot-whiskers and line plot
+  harm_threat_p <- ggplot(
+                descripts,
+                aes(x = Anger, color = Target, group = Target, y = mean,
+                    ymin = mean-se, ymax = mean+se)) + 
+                geom_line(position = position_dodge(0.1)) +
+                geom_errorbar(position = position_dodge(0.1), width = 0.12) +
+                geom_point(aes(color = Target), position = position_dodge(0.1), size = .8) +
+                ylim(1, 5) +
+                ggtitle("Harm and Threat") +
+                theme_bw() + 
+                labs(y="Perception of Harm and Threat", x = "Anger") +
+                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 10)) + 
+                      scale_color_manual(values=met.brewer("Nizami", 2, direction=-1))      
+
+    harm_threat_p
+      #ggsave(plot = harm_threat_p, width = 5, height = 5, dpi = 300, filename = "harm_threat_p.png")
+```
+
+# Fairness and Justification
+
+**Hypothesis:** The target's behavior is perceived as less fair and less justifiable in the justified (vs. unjustified) anger condition.
+
+```{r, fair-justified}
+#First, examine the correlation between the 2 items. If r > .5, proceed with creating a composite score. If not, conduct the analyses for each item separately.
+
+  cor.test(df1$beh_fair, df1$beh_justified) %>% cor_report()
+
+#Since items are strongly correlated (r > .5): 
+  df1 <- df1 %>% 
+            mutate(fair_just = ((beh_fair + beh_justified) / 2))
+#The t-test
+  df1 %>% 
+      t.test(fair_just ~ Condition, data = .)
+  
+  df1 %>% 
+      effectsize::cohens_d(fair_just ~ Condition, data = .)
+  #For reporting
+  ind_ttest_report(df1$Condition, df1$fair_just)
+```
+
+# Norm Violations
+
+**Hypothesis 1:** The target’s behavior during justified anger events (vs. unjustified ones) is judged as a stronger norm violation. 
+
+**Hypothesis 2:** The difference between justified and unjustified anger events is moderated by the type of norm violation, such that this difference is larger for injunctive norms (compared to descriptive norms). 
+
+## Analyses
+
+```{r, norms}
+#create the dataframe
+    norms_df <- df1 %>% 
+                      select(ResponseId, Condition, how_acceptable, how_common) %>% 
+                      mutate(injunctive = 6 - how_acceptable,
+                             descriptive = 6 - how_common)
+                      
+                      
+
+#create a long dataframe
+    norms_df_long <- norms_df %>% 
+                            tidyr::pivot_longer(cols = c(injunctive, descriptive),
+                                                names_to = "norm_type",
+                                                values_to = "violation")
+
+#The model: 
+    #The main effect of type of anger (i.e., condition) corresponds to Hypothesis 1
+    #The interaction effect corresponds to Hypothesis 2
+    
+    norms_df_long %>% 
+      rstatix::anova_test(data = .,
+                          dv = violation,
+                          wid = ResponseId,
+                          between = Condition,
+                          within = norm_type) %>% 
+      rstatix::get_anova_table()
+
+
+#The difference between the two conditions in terms of injunctive norms
+    t.test(injunctive ~ Condition, data = norms_df)
+    effectsize::cohens_d(injunctive ~ Condition, data = norms_df)
+  #For reporting
+    ind_ttest_report(norms_df$Condition, norms_df$injunctive)
+    
+#The difference between the two conditions in terms of descriptive norms
+    t.test(descriptive ~ Condition, data = norms_df)
+    effectsize::cohens_d(descriptive ~ Condition, data = norms_df)
+  #For reporting
+    ind_ttest_report(norms_df$Condition, norms_df$descriptive)
+```
+
+## Figure
+
+```{r, norms-fig, fig.align='center', fig.width=5}
+
+#getting mean and se for the graph
+      descripts <- psych::describeBy(norms_df_long$violation, 
+                         group = list(norms_df_long$Condition, norms_df_long$norm_type), mat = TRUE)   %>% 
+                        select(group1, group2, mean, se) %>% 
+                        transmute(Anger = as.factor(group1),
+                                  Norms = as.factor(group2),
+                                  mean, se)
+      levels(descripts$Anger) <- c("Justified", "Unjustified")
+      levels(descripts$Norms) <- c("Descriptive", "Injunctive")
+      
+#interaction plot - dot-whiskers and line plot
+  norms_p <- ggplot(
+                descripts,
+                aes(x = Anger, color = Norms, group = Norms, y = mean,
+                    ymin = mean-se, ymax = mean+se)) + 
+                geom_line(position = position_dodge(0.1)) +
+                geom_errorbar(position = position_dodge(0.1), width = 0.12) +
+                geom_point(aes(color = Norms), position = position_dodge(0.1), size = .8) +
+                ylim(1, 5) +
+                ggtitle("Norm Violation") +
+                theme_bw() + 
+                labs(y="Perception of Norm Violation", x = "Anger") +
+                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 10)) + 
+                      scale_color_manual(values=met.brewer("Nizami", 2, direction=-1))      
+
+    norms_p
+      #ggsave(plot = norms_p, width = 5, height = 5, dpi = 300, filename = "norms_p.png")
+```
