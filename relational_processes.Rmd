@@ -1,0 +1,171 @@
+---
+title: "Analyses of the Anger Experiencers' Relational Processes"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script represents the test of the hypotheses and research questions about the relational processes of the participants during their anger experience, and how the different aspects of these processes vary between justified and unjustified anger prototypes.
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2", "MetBrewer", "lmerTest")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#Function to report correlation
+cor_report <- function(cor_output) {
+          r <- cor_output[["estimate"]] %>% round(2)
+          df <- cor_output[["parameter"]] %>% round(1)
+          ci_lb <- (cor_output[["conf.int"]])[1] %>% round(2)
+          ci_ub <- (cor_output[["conf.int"]])[2] %>% round(2)
+          original_p <- cor_output[["p.value"]] %>% round(3)
+          p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+          
+          print(paste0("r(", df, ") = ", r, " [", ci_lb, ", ", ci_ub, "], p ", p))
+    }
+
+#Function to report independent-samples t-test
+  ind_ttest_report <- function(iv, dv) {
+      ttest <- t.test(dv ~ iv)
+      effect_size <- effectsize::cohens_d(dv ~ iv, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to report paired-samples t-test
+    paired_ttest_report <- function(t1, t2) {
+      ttest <- t.test(Pair(t1, t2) ~ 1)
+      effect_size <- effectsize::cohens_d(Pair(t1, t2) ~ 1, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to calculate percentages for each category of a Factor variable
+    percentage <- function(var, includeNA = TRUE) {
+          tabb <- table(var) %>% as.data.frame()
+              if (includeNA == TRUE) {
+                   tabb$percentage <- (tabb$Freq * 100 / length(var))
+              } else {
+                    tabb$percentage <- (tabb$Freq * 100 / sum(tabb$Freq))
+              }
+          colnames(tabb)[1] <- c("category")
+          print(tabb)
+    }
+    
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+
+## Perception of Target's Regret/Apology
+
+**Research Question:** Do the perceptions of the target as regretful and apologetic vary depending on whether they consider the anger event as justified or unjustified? 
+
+```{r, regret-apol, eval=FALSE}
+  #Regret 
+    df1 %>% 
+        t.test(person_regret ~ Condition, data = .)
+    df1 %>% 
+        effectsize::cohens_d(person_regret ~ Condition, data = .)
+    #For reporting:
+      ind_ttest_report(df1$Condition, df1$person_regret)
+      
+  #Apology
+    df1 %>% 
+        t.test(person_apologize ~ Condition, data = .)
+    df1 %>% 
+        effectsize::cohens_d(person_apologize ~ Condition, data = .)
+    #For reporting:
+      ind_ttest_report(df1$Condition, df1$person_apologize)
+
+```
+
+## Relationship Closeness
+
+**Hypothesis 1:** Relationship closeness deteriorates following an anger event, both “short-term” (i.e., comparing closeness before and immediately after the event) and “long-term” (i.e., comparing closeness before the event and at the time of the study).
+
+```{r closeness1, eval=FALSE}
+closeness_df <- df1 %>% 
+                      select(ResponseId, Condition, prior_closeness, immed_closeness, now_closeness)
+
+#create a long dataframe
+closeness_df_long <- closeness_df %>% 
+                            tidyr::pivot_longer(cols = c(prior_closeness, immed_closeness, now_closeness),
+                                                names_to = "time",
+                                                values_to = "closeness") %>% 
+                            mutate(time = as.factor(time)) %>% 
+                            mutate(time = forcats::fct_relevel(time, "prior_closeness", "immed_closeness", "now_closeness"))
+                      
+  levels(closeness_df_long$time) <- c("prior", "immediate", "now")
+
+#setup the contrasts
+  contrasts(closeness_df_long$Condition) <- contr.sum
+  contrasts(closeness_df_long$time) <- contr.sum  
+
+#Overal model
+  closeness_model <- lmer(closeness ~ time * Condition + (1 | ResponseId),
+                          data = closeness_df_long)
+
+  anova(closeness_model, type = "III") %>% knitr::kable()
+
+#comparing closeness (a) before vs. immediately after the event 
+  pbkrtest.limit = 4000
+  pairwise_mod <- emmeans::emmeans(closeness_model, pairwise ~ time, pbkrtest.limit = 4000)
+  pairwise_mod[["contrasts"]][1]
+
+#comparing closeness (b) before vs. now
+  pairwise_mod[["contrasts"]][2]
+
+```
+
+**Hypothesis 2:** The long-term deterioration of relationship closeness is stronger for justified (vs. unjustified) anger experiences.
+
+```{r, closeness2, eval=FALSE}
+longterm_mod <- emmeans::emmeans(closeness_model, pairwise ~ time | Condition, pbkrtest.limit = 4000)
+  
+  #justified: prior vs. now
+  longterm_mod[["contrasts"]][2]
+  #not justified: prior vs. now
+  longterm_mod[["contrasts"]][5]
+
+```
