@@ -1,0 +1,300 @@
+---
+title: "Analyses of the Anger Experiencers' Emotional Processes"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script represents the test of the hypotheses and research questions about the emotional processes of the participants during their anger experience, and how the different aspects of these processes vary between justified and unjustified anger prototypes.
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2", "MetBrewer")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#Function to report correlation
+cor_report <- function(cor_output) {
+          r <- cor_output[["estimate"]] %>% round(2)
+          df <- cor_output[["parameter"]] %>% round(1)
+          ci_lb <- (cor_output[["conf.int"]])[1] %>% round(2)
+          ci_ub <- (cor_output[["conf.int"]])[2] %>% round(2)
+          original_p <- cor_output[["p.value"]] %>% round(3)
+          p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+          
+          print(paste0("r(", df, ") = ", r, " [", ci_lb, ", ", ci_ub, "], p ", p))
+    }
+
+#Function to report independent-samples t-test
+  ind_ttest_report <- function(iv, dv) {
+      ttest <- t.test(dv ~ iv)
+      effect_size <- effectsize::cohens_d(dv ~ iv, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to report paired-samples t-test
+    paired_ttest_report <- function(t1, t2) {
+      ttest <- t.test(Pair(t1, t2) ~ 1)
+      effect_size <- effectsize::cohens_d(Pair(t1, t2) ~ 1, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to calculate percentages for each category of a Factor variable
+    percentage <- function(var, includeNA = TRUE) {
+          tabb <- table(var) %>% as.data.frame()
+              if (includeNA == TRUE) {
+                   tabb$percentage <- (tabb$Freq * 100 / length(var))
+              } else {
+                    tabb$percentage <- (tabb$Freq * 100 / sum(tabb$Freq))
+              }
+          colnames(tabb)[1] <- c("category")
+          print(tabb)
+    }
+    
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+
+# Affective Experience
+
+**Research Question:** What are the differences between justified vs. unjustified anger in terms of the intensity of affective experiences? <br>
+
+## Dimensionality Analyses
+
+To compare the broader affective experiences of participants across the justified and unjustified anger events, participants were asked to rate their emotional experience during the anger eliciting event using 27 positive and negative emotions. First, following the preregistration, the structure of the affective experiences will be determined using dimensionality reduction analysis (i.e., PCA). 
+
+
+```{r, affec-pca}
+df_affect <- df1 %>% 
+                    select(ResponseId, Condition, starts_with("em_"))
+
+  #scree plot
+  df_affect %>% 
+    select(starts_with("em_")) %>% 
+    psych::scree(hline = -1) #suggests 4 components
+  
+  #parallel analysis
+  df_affect %>% 
+    select(starts_with("em_")) %>% 
+    psych::fa.parallel() #suggests 4 components
+  
+  #Velicor's MAP
+  df_affect %>% 
+    select(starts_with("em_")) %>% 
+    psych::nfactors(n = 27) #Velicor's MAP suggests 4 factors
+
+
+#PCA with 4 components 
+  pca_4_component <- df_affect %>% 
+                        select(starts_with("em_")) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome <- psych::kaiser(pca_4_component, rotate = "Varimax") %>% psych::fa.sort()
+
+  four_comp_outcome[["loadings"]] %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = F)
+
+  #"Strong" has the strongest cross-loading. It will be dropped before the next iteration.
+  pca_4_component_i2 <- df_affect %>% 
+                        select(starts_with("em_"), -em_strong) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i2 <- psych::kaiser(pca_4_component_i2, rotate = "Varimax") %>% psych::fa.sort()
+
+  four_comp_outcome_i2[["loadings"]] %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = F)
+  #"Surprised" does not have a high loading (i.e., > .40) on any of the components. It will be dropped before the next iteration.
+  pca_4_component_i3 <- df_affect %>% 
+                        select(starts_with("em_"), -em_strong, -em_surprised) %>%  
+                        psych::principal(., nfactors = 4, rotate = "varimax") 
+        
+  four_comp_outcome_i3 <- psych::kaiser(pca_4_component_i3, rotate = "Varimax") %>% psych::fa.sort()
+
+  four_comp_outcome_i3[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    mutate(Item = stringr::str_replace_all(Item, "_", " ")) %>% 
+                    select(Item, starts_with("RC")) %>% 
+                    knitr::kable(digits = 2) %>%
+                    kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+                    kableExtra::kable_paper(full_width = F)
+
+
+```
+
+Based on the PCA results, scale scores will be created. 
+
+```{r, affect-scoring}
+
+#Hypothetical scenario: code for calculating scale scores for 2 components
+  keys.list <- list(self_blame = c("em_disgusted_w_self","em_ashamed","em_guilty","em_angry_at_self", "em_embarrassed"),
+                    hostility = c("em_hostile","em_loathing_hateful","em_frustrated","em_irritable", "em_upset", "em_disgusted", "em_alert", "em_daring"),
+                    forlorn = c("em_depressed", "em_sad", "em_lonely", "em_anxious", "em_afraid", "em_shy"),
+                    joy = c("em_excited", "em_happy", "em_enthusiastic", "em_proud", "em_relaxed", "em_lively"))
+
+  affect_scores <- psych::scoreItems(keys.list, df_affect)
+  affect_scores
+  df_affect <- cbind(df_affect, affect_scores$scores)
+
+  #The 3 lines below will save the APA-style correlation table in a word document:
+  #df_affect %>% 
+  #  select(self_blame, hostility, forlorn, joy) %>% 
+  #  apaTables::apa.cor.table(.,filename = "affect_cor.doc", table.number = 1, show.conf.interval = T)  
+  
+#Compare conditions for each of the 4 components
+  #self-blame
+    df_affect %>% 
+        t.test(self_blame ~ Condition, data = .)
+    df_affect %>% 
+        effectsize::cohens_d(self_blame ~ Condition, data = .)
+    #for reporting
+      ind_ttest_report(df_affect$Condition, df_affect$self_blame)
+
+  #hostility
+    df_affect %>% 
+        t.test(hostility ~ Condition, data = .)
+    df_affect %>% 
+        effectsize::cohens_d(hostility ~ Condition, data = .)
+    #for reporting
+      ind_ttest_report(df_affect$Condition, df_affect$hostility)
+
+  #forlorn
+    df_affect %>% 
+        t.test(forlorn ~ Condition, data = .)
+    df_affect %>% 
+        effectsize::cohens_d(forlorn ~ Condition, data = .)
+    #for reporting
+      ind_ttest_report(df_affect$Condition, df_affect$forlorn)
+      
+  #joy
+    df_affect %>% 
+        t.test(joy ~ Condition, data = .)
+    df_affect %>% 
+        effectsize::cohens_d(joy ~ Condition, data = .)
+    #for reporting
+      ind_ttest_report(df_affect$Condition, df_affect$joy)
+
+```
+
+
+# Expressivity
+
+**Hypothesis 1:** Participants are more likely to evaluate their own anger expression as “exaggerated” in the unjustified (vs. justified) anger condition.
+
+```{r, exag-express, eval=FALSE}
+df1$behav_reac <- as.factor(df1$behav_reac)
+levels(df1$behav_reac) <- c("fully_concealed", "partly_concealed", "fully_expressed", "exaggerated")
+
+  percentage(df1$behav_reac)
+
+#Compare the reactions based on Condition
+  #cross-tabs
+    expressivity_table1 <- xtabs( ~ Condition + behav_reac,
+                               data=df1)
+    prop.table(expressivity_table1, 1) %>% 
+                                    round(2) 
+  #overall chi-square
+    chisq.test(df1$Condition, 
+               df1$behav_reac)
+
+  #Since the overall chi-square is significant, follow-up analyses will be conducted. Of these four analyses, the first one corresponds to the hypothesis (stated above), and the rest are exploratory:
+  df_exaggerated <- df1 %>% 
+                        mutate(exaggerated = if_else(behav_reac == "exaggerated", "Yes", "No")) %>% 
+                        select(Condition, exaggerated)
+    chisq.test(df_exaggerated$Condition, 
+               df_exaggerated$exaggerated)
+    
+  df_fully_expressed <- df1 %>% 
+                        mutate(fully_expressed = if_else(behav_reac == "fully_expressed", "Yes", "No")) %>% 
+                        select(Condition, fully_expressed)
+    chisq.test(df_fully_expressed$Condition, 
+               df_fully_expressed$fully_expressed)  
+    
+  df_partly_concealed <- df1 %>% 
+                        mutate(partly_concealed = if_else(behav_reac == "partly_concealed", "Yes", "No")) %>% 
+                        select(Condition, partly_concealed)
+    chisq.test(df_partly_concealed$Condition, 
+               df_partly_concealed$partly_concealed)
+    
+  df_fully_concealed <- df1 %>% 
+                        mutate(fully_concealed = if_else(behav_reac == "fully_concealed", "Yes", "No")) %>% 
+                        select(Condition, fully_concealed)
+    chisq.test(df_fully_concealed$Condition, 
+               df_fully_concealed$fully_concealed)
+    
+```
+
+
+**Hypothesis 2:** The strength of the experience-expression relation tamps down as the anger intensity increases, and this deceleration is stronger for justified anger. 
+
+```{r, feel-exp-relation, eval=FALSE}
+df_feel_exp <- df1 %>% 
+                select(ResponseId, Condition, anger_feel, anger_express) %>% 
+                mutate(anger_feel_c = as.double(scale(anger_feel, scale = FALSE)),
+                       anger_feel_c_sq = anger_feel_c^2)
+
+#A linear model testing the feel-express relation
+  mod1_linear <- lm(anger_express ~ anger_feel_c,
+                    data = df_feel_exp)
+  summary(mod1_linear)
+
+#A curvilinear model testing the feel-express relation: This is the test of the first part of the hypothesis. 
+ 
+  mod1_nonlinear <- lm(anger_express ~ anger_feel_c + anger_feel_c_sq,
+                    data = df_feel_exp)
+  summary(mod1_nonlinear)
+  anova(mod1_linear, mod1_nonlinear)
+
+#If the curvilinear relation is significant, the moderating role of Condition for this curvilinear relation will be tested, which will correspond to the second part of the hypothesis.   
+  mod2_nonlinear <- lm(anger_express ~ anger_feel_c * Condition + anger_feel_c_sq * Condition,
+                    data = df_feel_exp)
+  summary(mod2_nonlinear)
+
+```
