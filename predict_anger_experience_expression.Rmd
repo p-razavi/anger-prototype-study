@@ -346,7 +346,8 @@ Reporting the models in APA style (for the manuscript)
     olsrr::ols_vif_tol(feel_model)
     
   #None of the three criteria above is violated -- proceed to interpreting the model outcome:
-
+      summary(feel_model)
+    
     #Save results into a file for the regression Table in the manuscript
       #reg_report(feel_model) %>% write.csv("predict_experience_simultaneous.csv")
 
@@ -366,19 +367,17 @@ feel_model_interaction <- lm(anger_feel ~ harm.threat_self*Condition + harm.thre
 
 # Predicting Anger Expression
 
-### Incremental Association Beyond Harm/Threat
+## Incremental Association Beyond Harm/Threat
 
 **Research Question 1a:** What is the association between various characteristics of the anger eliciting event/person (i.e., perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger expression over and above perception of harm/threat (to self and to others)?
 
-```{r, increment-express, eval=FALSE}
-#Note: Creating composite scores will follow the same plan as explained in the previous section (i.e., Predictors of Anger Experience). The following models will be adjusted if/when the assumption of high correlation between composite items is not met.
-
+```{r, increment-express}
 #A base model predicting anger expression from perceptions of harm/threat
       expression_base_model <- lm(anger_express ~ harm.threat_self + harm.threat_other,
                      data = df1)
       summary(expression_base_model)
       
-#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors separately. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors separately:
       #fairness/justification
       expression_inc_model_fairness <- lm(anger_express ~ harm.threat_self + harm.threat_other + fair_just,
                      data = df1)
@@ -389,53 +388,196 @@ feel_model_interaction <- lm(anger_feel ~ harm.threat_self*Condition + harm.thre
                      data = df1)
       summary(expression_inc_model_regret)
       
+      #perception of target's tendency to apologize
+      expression_inc_model_apology <- lm(anger_express ~ harm.threat_self + harm.threat_other + person_apologize,
+                     data = df1)
+      summary(expression_inc_model_apology)
+      
+      #perception that target's behavior had an internal cause
+      expression_inc_model_circumst <- lm(anger_express ~ harm.threat_self + harm.threat_other + cause_circumst,
+                     data = df1)
+      summary(expression_inc_model_circumst)
+      
+      #perception that target would behave the same (i.e., stable characteristic)
+      expression_inc_model_stable <- lm(anger_express ~ harm.threat_self + harm.threat_other + behave_same,
+                     data = df1)
+      summary(expression_inc_model_stable)
+
+      #behavior violated injunctive norms
+      expression_inc_model_injunctive <- lm(anger_express ~ harm.threat_self + harm.threat_other + injunctive,
+                     data = df1)
+      summary(expression_inc_model_injunctive)      
+
+      #behavior violated descriptive norms
+      expression_inc_model_descriptive <- lm(anger_express ~ harm.threat_self + harm.threat_other + descriptive,
+                     data = df1)
+      summary(expression_inc_model_descriptive) 
+
+      #relationship closeness prior to the event
+      expression_inc_model_closeness <- lm(anger_express ~ harm.threat_self + harm.threat_other + prior_closeness,
+                     data = df1)
+      summary(expression_inc_model_closeness) 
+
+```
+
+Reporting the models in APA style (for the manuscript)
+
+```{r, eval=FALSE}
+#save the results for each model in a word doc
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_fairness,
+                               filename = "predict_expression_fairness.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_regret,
+                               filename = "predict_expression_regret") #does not run because the models have different sample sizes
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_apology,
+                               filename = "predict_expression_apology.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_circumst,
+                               filename = "predict_expression_circumst.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_stable, #does not run because the models have different sample sizes
+                               filename = "predict_expression_stable.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_injunctive,
+                               filename = "predict_expression_injunctive.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_descriptive,
+                               filename = "predict_expression_descriptive.doc")
+      apaTables::apa.reg.table(expression_base_model, expression_inc_model_closeness,
+                               filename = "predict_expression_closeness.doc")
+
+#for the two models above that did not run, we need to rerun the base model using listwise deletion:
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(person_regret)) %>% 
+            lm(anger_express ~ harm.threat_self + harm.threat_other, data = .) -> expression_base_model_listwise1
+      
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(behave_same)) %>% 
+            lm(anger_express ~ harm.threat_self + harm.threat_other, data = .) -> expression_base_model_listwise2
+      
+      #now generate the APA tables
+      apaTables::apa.reg.table(expression_base_model_listwise1, expression_inc_model_regret,
+                               filename = "predict_expression_regret.doc")
+      apaTables::apa.reg.table(expression_base_model_listwise2, expression_inc_model_stable,
+                               filename = "predict_expression_stable.doc")
+      
+
 ```
 
 **Research Question 1b:** To what extent do the predictors of anger expression (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
 
-```{r, increment-express2, eval=FALSE}
+```{r, increment-express2}
 #A base model predicting anger expression from perceptions of harm/threat X anger type
       expression_int_model <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition,
                      data = df1)
       summary(expression_int_model)
 
-#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type:
       #fairness/justification
-      expression_int_inc_model_fairness <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition,
+      expression_int_inc_model_fairness <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + fair_just*Condition,
                      data = df1)
       summary(expression_int_inc_model_fairness)
       
       #perception of target's regret
-      expression_int_inc_model_regret <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + person_regret * Condition,
+      expression_int_inc_model_regret <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + person_regret*Condition,
                      data = df1)
       summary(expression_int_inc_model_regret)
+      
+      #perception of target's tendency to apologize
+      expression_int_inc_model_apology <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + person_apologize*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_apology)
+      
+      #perception that target's behavior had an internal cause
+      expression_int_inc_model_circumst <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + cause_circumst*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_circumst)
+      
+      #perception that target would behave the same (i.e., stable characteristic)
+      expression_int_inc_model_stable <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + behave_same*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_stable)
+
+      #behavior violated injunctive norms
+      expression_int_inc_model_injunctive <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + injunctive*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_injunctive)      
+
+      #behavior violated descriptive norms
+      expression_int_inc_model_descriptive <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + descriptive*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_descriptive) 
+
+      #relationship closeness prior to the event
+      expression_int_inc_model_closeness <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + prior_closeness*Condition,
+                     data = df1)
+      summary(expression_int_inc_model_closeness) 
+      
+```
+
+Reporting the models in APA style (for the manuscript)
+
+```{r, eval=FALSE}
+#save the results for each model in a word doc
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_fairness,
+                               filename = "predict_expression_fairness_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_regret,
+                               filename = "predict_expression_regret") #does not run because the models have different sample sizes
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_apology,
+                               filename = "predict_expression_apology_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_circumst,
+                               filename = "predict_expression_circumst_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_stable, #does not run because the models have different sample sizes
+                               filename = "predict_expression_stable_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_injunctive,
+                               filename = "predict_expression_injunctive_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_descriptive,
+                               filename = "predict_expression_descriptive_int.doc")
+      apaTables::apa.reg.table(expression_int_model, expression_int_inc_model_closeness,
+                               filename = "predict_expression_closeness_int.doc")
+
+#for the two models above that did not run, we need to rerun the base model using listwise deletion:
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(person_regret)) %>% 
+            lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition, data = .) -> expression_int_model_listwise1
+      
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(behave_same)) %>% 
+            lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition, data = .) -> expression_int_model_listwise2
+      
+      #now generate the APA tables
+      apaTables::apa.reg.table(expression_int_model_listwise1, expression_int_inc_model_regret,
+                               filename = "predict_expression_regret_int.doc")
+      apaTables::apa.reg.table(expression_int_model_listwise2, expression_int_inc_model_stable,
+                               filename = "predict_expression_stable_int.doc")
+      
+
 ```
 
 
-### Simultaneous Prediction
+## Simultaneous Prediction
 
 **Research Question 2a:** What is the unique association between various characteristics of the anger eliciting event/person (i.e., perception of harm/threat to self and to others, perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger expression?
 
-```{r, pred-express, eval=FALSE}
+```{r, pred-express}
 
   #Testing for multicolinearity: check for tolerance < .1 and VIFs > 5
-    express_model <- lm(anger_express ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + causal_attr + injunctive + descriptive + prior_closeness,
+    express_model <- lm(anger_express ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + cause_circumst + behave_same + injunctive + descriptive + prior_closeness,
                      data = df1)
 
     olsrr::ols_vif_tol(express_model)
     
-  #If any of the multicolinearity criteria is violated, evaluate the model and address the issue by dropping predictor(s) that are problematic. If no multicolinearity issue is detected, proceed to interpreting the model outcome:
-    
+  #Since none of the multicolinearity criteria is violated, evaluate the model:
     summary(express_model)
+    
+    #Save results into a file for the regression Table in the manuscript
+      #reg_report(express_model) %>% write.csv("predict_expression_simultaneous.csv")
 ```
 
 **Research Question 2b:** To what extent do the predictors of anger expressivity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
 
-```{r, pred-express-mod, eval=FALSE}
-express_model_interaction <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition + person_regret * Condition + person_apologize * Condition + causal_attr * Condition + injunctive * Condition + descriptive * Condition + prior_closeness * Condition,
+```{r, pred-express-mod}
+express_model_interaction <- lm(anger_express ~ harm.threat_self*Condition + harm.threat_other*Condition + fair_just*Condition + person_regret*Condition + person_apologize*Condition + cause_circumst*Condition + behave_same*Condition + injunctive*Condition + descriptive*Condition + prior_closeness*Condition,
                      data = df1)
 
   summary(express_model_interaction)
 
+    #Save results into a file for the regression Table in the manuscript
+      #reg_report(express_model_interaction) %>% write.csv("predict_expression_simultaneous_interaction.csv")
 ```
 
