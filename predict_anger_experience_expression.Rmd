@@ -158,7 +158,7 @@ df1 <- df1 %>%
       #perception that target would behave the same (i.e., stable characteristic)
       experience_inc_model_stable <- lm(anger_feel ~ harm.threat_self + harm.threat_other + behave_same,
                      data = df1)
-      summary(experience_inc_model_behave_same)
+      summary(experience_inc_model_stable)
 
       #behavior violated injunctive norms
       experience_inc_model_injunctive <- lm(anger_feel ~ harm.threat_self + harm.threat_other + injunctive,
@@ -220,24 +220,93 @@ Reporting the models in APA style (for the manuscript)
 
 **Research Question 1b:** To what extent do the predictors of anger intensity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
 
-```{r, increment-feel2, eval=FALSE}
+```{r, increment-feel2}
 #A base model predicting anger experience from perceptions of harm/threat X anger type
       experience_int_model <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition,
                      data = df1)
       summary(experience_int_model)
 
-#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type:
       #fairness/justification
-      experience_int_inc_model_fairness <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition,
+      experience_int_inc_model_fairness <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + fair_just*Condition,
                      data = df1)
       summary(experience_int_inc_model_fairness)
       
       #perception of target's regret
-      experience_int_inc_model_regret <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + person_regret * Condition,
+      experience_int_inc_model_regret <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + person_regret*Condition,
                      data = df1)
       summary(experience_int_inc_model_regret)
+      
+      #perception of target's tendency to apologize
+      experience_int_inc_model_apology <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + person_apologize*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_apology)
+      
+      #perception that target's behavior had an internal cause
+      experience_int_inc_model_circumst <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + cause_circumst*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_circumst)
+      
+      #perception that target would behave the same (i.e., stable characteristic)
+      experience_int_inc_model_stable <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + behave_same*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_stable)
+
+      #behavior violated injunctive norms
+      experience_int_inc_model_injunctive <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + injunctive*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_injunctive)      
+
+      #behavior violated descriptive norms
+      experience_int_inc_model_descriptive <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + descriptive*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_descriptive) 
+
+      #relationship closeness prior to the event
+      experience_int_inc_model_closeness <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + prior_closeness*Condition,
+                     data = df1)
+      summary(experience_int_inc_model_closeness) 
+      
 ```
 
+Reporting the models in APA style (for the manuscript)
+
+```{r, eval=FALSE}
+#save the results for each model in a word doc
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_fairness,
+                               filename = "predict_experience_fairness_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_regret,
+                               filename = "predict_experience_regret") #does not run because the models have different sample sizes
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_apology,
+                               filename = "predict_experience_apology_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_circumst,
+                               filename = "predict_experience_circumst_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_stable, #does not run because the models have different sample sizes
+                               filename = "predict_experience_stable_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_injunctive,
+                               filename = "predict_experience_injunctive_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_descriptive,
+                               filename = "predict_experience_descriptive_int.doc")
+      apaTables::apa.reg.table(experience_int_model, experience_int_inc_model_closeness,
+                               filename = "predict_experience_closeness_int.doc")
+
+#for the two models above that did not run, we need to rerun the base model using listwise deletion:
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(person_regret)) %>% 
+            lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition, data = .) -> experience_int_model_listwise1
+      
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(behave_same)) %>% 
+            lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition, data = .) -> experience_int_model_listwise2
+      
+      #now generate the APA tables
+      apaTables::apa.reg.table(experience_int_model_listwise1, experience_int_inc_model_regret,
+                               filename = "predict_experience_regret_int.doc")
+      apaTables::apa.reg.table(experience_int_model_listwise2, experience_int_inc_model_stable,
+                               filename = "predict_experience_stable_int.doc")
+      
+
+```
 
 ### Simultaneous Prediction
 
