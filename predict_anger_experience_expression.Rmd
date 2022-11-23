@@ -74,7 +74,24 @@ cor_report <- function(cor_output) {
           colnames(tabb)[1] <- c("category")
           print(tabb)
     }
-    
+
+#Function to report multiple correlation
+    reg_report <- function(reg_output) {
+              (summary(reg_output)$coefficients) %>% 
+                cbind(confint(reg_output)) %>% 
+                as.data.frame() %>% 
+                    tibble::rownames_to_column("Predictor") %>% 
+                    mutate(b = round(Estimate, 2),
+                           t = round(`t value`, 2),
+                           p = if_else(`Pr(>|t|)` >= .001, as.character(round(`Pr(>|t|)`, 3)), "< .001"),
+                           CI = paste0("[", round(`2.5 %`, 2), ",", round(`97.5 %`, 2), "]")) %>% 
+          select(Predictor, b, CI, t, p) %>% 
+        print()
+    }
+
+#turn off scientific notation
+    options(scipen=999)
+        
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -312,36 +329,39 @@ Reporting the models in APA style (for the manuscript)
 
 **Research Question 2a:** What is the unique association between various characteristics of the anger eliciting event/person (i.e., perception of harm/threat to self and to others, perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger experience?
 
-```{r, pred-experience, eval=FALSE}
+```{r, pred-experience}
 
 #Testing for multicolinearity
   #check the correlation matrix for r > .9
     df1 %>% 
       select(harm.threat_self, harm.threat_other, fair_just, 
-             person_regret, person_apologize, causal_attr, injunctive, descriptive, prior_closeness) %>% 
+             person_regret, person_apologize, cause_circumst, behave_same, injunctive, descriptive, prior_closeness) %>% 
       cor(use = "pairwise.complete.obs") %>% 
       round(2)
 
   #check for tolerance < .1 and VIFs > 5
-    feel_model <- lm(anger_feel ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + causal_attr + injunctive + descriptive + prior_closeness,
+    feel_model <- lm(anger_feel ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + cause_circumst + behave_same + injunctive + descriptive + prior_closeness,
                      data = df1)
 
     olsrr::ols_vif_tol(feel_model)
     
-  #if any of the three criteria above is violated, evaluate the model and address the issue by dropping predictor(s) that are problematic. If no multicolinearity issue is detected, proceed to interpreting the model outcome:
-    
-    summary(feel_model)
-    
+  #None of the three criteria above is violated -- proceed to interpreting the model outcome:
+
+    #Save results into a file for the regression Table in the manuscript
+      #reg_report(feel_model) %>% write.csv("predict_experience_simultaneous.csv")
+
 ```
 
 **Research Question 2b:** To what extent do the predictors of anger intensity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
 
-```{r, pred-experience-mod, eval=FALSE}
-feel_model_interaction <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition + person_regret * Condition + person_apologize * Condition + causal_attr * Condition + injunctive * Condition + descriptive * Condition + prior_closeness * Condition,
+```{r, pred-experience-mod}
+feel_model_interaction <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + fair_just*Condition + person_regret*Condition + person_apologize*Condition + cause_circumst*Condition + behave_same*Condition + injunctive*Condition + descriptive*Condition + prior_closeness*Condition,
                      data = df1)
 
   summary(feel_model_interaction)
 
+    #Save results into a file for the regression Table in the manuscript
+      #reg_report(feel_model_interaction) %>% write.csv("predict_experience_simultaneous_interaction.csv")
 ```
 
 # Predicting Anger Expression
