@@ -1,0 +1,352 @@
+---
+title: "Predicting Anger Experience and Expression"
+author: "Pooya Razavi"
+date: "last knitted: `r Sys.time()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: TRUE
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+This script represents the test of the research questions about the relation between different predictors and two outcomes: (a) the intensity of anger experience; (b) the intensity of anger expression. 
+
+
+```{r setup, include=FALSE, warning=FALSE}
+#load libraries
+package_list <- c("dplyr", "tidyr", "ggplot2", "MetBrewer", "lmerTest")
+lapply(package_list, require, character.only = TRUE)
+
+#read in the data
+df <- readxl::read_xlsx("C:/Users/pooya/Dropbox (University of Oregon)/Anger Dissertation/Prototype study analysis/ProcessedData_F21_W22_S22_F22.xlsx")
+
+#Function to report correlation
+cor_report <- function(cor_output) {
+          r <- cor_output[["estimate"]] %>% round(2)
+          df <- cor_output[["parameter"]] %>% round(1)
+          ci_lb <- (cor_output[["conf.int"]])[1] %>% round(2)
+          ci_ub <- (cor_output[["conf.int"]])[2] %>% round(2)
+          original_p <- cor_output[["p.value"]] %>% round(3)
+          p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+          
+          print(paste0("r(", df, ") = ", r, " [", ci_lb, ", ", ci_ub, "], p ", p))
+    }
+
+#Function to report independent-samples t-test
+  ind_ttest_report <- function(iv, dv) {
+      ttest <- t.test(dv ~ iv)
+      effect_size <- effectsize::cohens_d(dv ~ iv, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to report paired-samples t-test
+    paired_ttest_report <- function(t1, t2) {
+      ttest <- t.test(Pair(t1, t2) ~ 1)
+      effect_size <- effectsize::cohens_d(Pair(t1, t2) ~ 1, pooled_sd = FALSE)
+      t <- ttest[["statistic"]] %>% round(2)
+      df <- ttest[["parameter"]] %>% round(1)
+      original_p <- ttest[["p.value"]] %>% round(3)
+      p <- if_else(original_p >= .001, paste0("= ", as.character(original_p)), "< .001")
+      d <- effect_size[1,1] %>% round(2)    
+      
+      print(paste0("t(", df, ") = ", t, ", p ", p, ", d = ", d))
+      
+  }
+  
+#Function to calculate percentages for each category of a Factor variable
+    percentage <- function(var, includeNA = TRUE) {
+          tabb <- table(var) %>% as.data.frame()
+              if (includeNA == TRUE) {
+                   tabb$percentage <- (tabb$Freq * 100 / length(var))
+              } else {
+                    tabb$percentage <- (tabb$Freq * 100 / sum(tabb$Freq))
+              }
+          colnames(tabb)[1] <- c("category")
+          print(tabb)
+    }
+    
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, data-exclusion}
+#assigning values to factor levels
+  df$NarrativeWritten <- as.factor(df$NarrativeWritten)
+  df$NarrativeRelevant <- as.factor(df$NarrativeRelevant)
+  df$Condition <- as.factor(df$Condition)
+  
+  levels(df$NarrativeWritten) <- c("No", "Yes")
+  levels(df$NarrativeRelevant) <- c("No", "Yes", NA, NA) 
+  levels(df$Condition) <- c("justified", "nonjustified", NA)
+
+#drop cases following preregistration
+  df1 <- df %>% 
+    filter(NarrativeWritten != "No") %>% 
+    filter(NarrativeRelevant != "No") %>% 
+    filter(!is.na(Condition))
+
+```
+
+# Predicting Anger Experience
+
+## Incremental Association Beyond Harm/Threat
+
+**Research Question 1a:** What is the association between various characteristics of the anger eliciting event/person (i.e., perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger experience over and above perception of harm/threat (to self and to others)?
+
+```{r, increment-feel}
+#before creating composite scores, test the correlation between items. If r > .5, proceed with creating a composite score; otherwise, each item will be entered as a predictor in the following models.
+
+  #Fairness/justification
+    cor.test(df1$beh_fair, df1$beh_justified) %>% cor_report()
+  #Harm/threat to self
+    cor.test(df1$harm_you, df1$threat_you) %>% cor_report()
+  #Harm/threat to other
+    cor.test(df1$harm_others, df1$threat_others) %>% cor_report()
+  #Causal attribution
+    cor.test(df1$cause_circumst, df1$behave_same) %>% cor_report() #this one does not meet the r > .5 assumption.
+
+
+#Create composite scores for the three constructs to which the corresponding items have high correlations (i.e., above r > .5): 
+df1 <- df1 %>% 
+          mutate(fair_just = ((beh_fair + beh_justified) / 2),
+                 harm.threat_self = ((harm_you + threat_you) / 2),
+                  harm.threat_other = ((harm_others + threat_others) / 2)) 
+
+  #The two items related to causal attribution will be entered into the models individually (instead of being entered as a composite score).
+
+  #reverse-scoring the norm items
+  df1 <- df1 %>% 
+              mutate(injunctive = 6 - how_acceptable,
+                      descriptive = 6 - how_common)
+
+#A base model predicting anger experience from perceptions of harm/threat
+      experience_base_model <- lm(anger_feel ~ harm.threat_self + harm.threat_other,
+                     data = df1)
+      summary(experience_base_model)
+      
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors separately:
+      #fairness/justification
+      experience_inc_model_fairness <- lm(anger_feel ~ harm.threat_self + harm.threat_other + fair_just,
+                     data = df1)
+      summary(experience_inc_model_fairness)
+      
+      #perception of target's regret
+      experience_inc_model_regret <- lm(anger_feel ~ harm.threat_self + harm.threat_other + person_regret,
+                     data = df1)
+      summary(experience_inc_model_regret)
+      
+      #perception of target's tendency to apologize
+      experience_inc_model_apology <- lm(anger_feel ~ harm.threat_self + harm.threat_other + person_apologize,
+                     data = df1)
+      summary(experience_inc_model_apology)
+      
+      #perception that target's behavior had an internal cause
+      experience_inc_model_circumst <- lm(anger_feel ~ harm.threat_self + harm.threat_other + cause_circumst,
+                     data = df1)
+      summary(experience_inc_model_circumst)
+      
+      #perception that target would behave the same (i.e., stable characteristic)
+      experience_inc_model_stable <- lm(anger_feel ~ harm.threat_self + harm.threat_other + behave_same,
+                     data = df1)
+      summary(experience_inc_model_behave_same)
+
+      #behavior violated injunctive norms
+      experience_inc_model_injunctive <- lm(anger_feel ~ harm.threat_self + harm.threat_other + injunctive,
+                     data = df1)
+      summary(experience_inc_model_injunctive)      
+
+      #behavior violated descriptive norms
+      experience_inc_model_descriptive <- lm(anger_feel ~ harm.threat_self + harm.threat_other + descriptive,
+                     data = df1)
+      summary(experience_inc_model_descriptive) 
+
+      #relationship closeness prior to the event
+      experience_inc_model_closeness <- lm(anger_feel ~ harm.threat_self + harm.threat_other + prior_closeness,
+                     data = df1)
+      summary(experience_inc_model_closeness) 
+
+
+```
+
+Reporting the models in APA style (for the manuscript)
+
+```{r, eval=FALSE}
+#save the results for each model in a word doc
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_fairness,
+                               filename = "predict_experience_fairness.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_regret,
+                               filename = "predict_experience_regret") #does not run because the models have different sample sizes
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_apology,
+                               filename = "predict_experience_apology.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_circumst,
+                               filename = "predict_experience_circumst.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_stable, #does not run because the models have different sample sizes
+                               filename = "predict_experience_stable.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_injunctive,
+                               filename = "predict_experience_injunctive.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_descriptive,
+                               filename = "predict_experience_descriptive.doc")
+      apaTables::apa.reg.table(experience_base_model, experience_inc_model_closeness,
+                               filename = "predict_experience_closeness.doc")
+
+#for the two models above that did not run, we need to rerun the base model using listwise deletion:
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(person_regret)) %>% 
+            lm(anger_feel ~ harm.threat_self + harm.threat_other, data = .) -> experience_base_model_listwise1
+      
+      df1 %>% 
+        filter(!is.na(harm.threat_self) & !is.na(harm.threat_other) & !is.na(behave_same)) %>% 
+            lm(anger_feel ~ harm.threat_self + harm.threat_other, data = .) -> experience_base_model_listwise2
+      
+      #now generate the APA tables
+      apaTables::apa.reg.table(experience_base_model_listwise1, experience_inc_model_regret,
+                               filename = "predict_experience_regret.doc")
+      apaTables::apa.reg.table(experience_base_model_listwise2, experience_inc_model_stable,
+                               filename = "predict_experience_stable.doc")
+      
+
+```
+
+
+**Research Question 1b:** To what extent do the predictors of anger intensity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
+
+```{r, increment-feel2, eval=FALSE}
+#A base model predicting anger experience from perceptions of harm/threat X anger type
+      experience_int_model <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition,
+                     data = df1)
+      summary(experience_int_model)
+
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+      #fairness/justification
+      experience_int_inc_model_fairness <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition,
+                     data = df1)
+      summary(experience_int_inc_model_fairness)
+      
+      #perception of target's regret
+      experience_int_inc_model_regret <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + person_regret * Condition,
+                     data = df1)
+      summary(experience_int_inc_model_regret)
+```
+
+
+### Simultaneous Prediction
+
+**Research Question 2a:** What is the unique association between various characteristics of the anger eliciting event/person (i.e., perception of harm/threat to self and to others, perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger experience?
+
+```{r, pred-experience, eval=FALSE}
+
+#Testing for multicolinearity
+  #check the correlation matrix for r > .9
+    df1 %>% 
+      select(harm.threat_self, harm.threat_other, fair_just, 
+             person_regret, person_apologize, causal_attr, injunctive, descriptive, prior_closeness) %>% 
+      cor(use = "pairwise.complete.obs") %>% 
+      round(2)
+
+  #check for tolerance < .1 and VIFs > 5
+    feel_model <- lm(anger_feel ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + causal_attr + injunctive + descriptive + prior_closeness,
+                     data = df1)
+
+    olsrr::ols_vif_tol(feel_model)
+    
+  #if any of the three criteria above is violated, evaluate the model and address the issue by dropping predictor(s) that are problematic. If no multicolinearity issue is detected, proceed to interpreting the model outcome:
+    
+    summary(feel_model)
+    
+```
+
+**Research Question 2b:** To what extent do the predictors of anger intensity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
+
+```{r, pred-experience-mod, eval=FALSE}
+feel_model_interaction <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition + person_regret * Condition + person_apologize * Condition + causal_attr * Condition + injunctive * Condition + descriptive * Condition + prior_closeness * Condition,
+                     data = df1)
+
+  summary(feel_model_interaction)
+
+```
+
+# Predicting Anger Expression
+
+### Incremental Association Beyond Harm/Threat
+
+**Research Question 1a:** What is the association between various characteristics of the anger eliciting event/person (i.e., perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger expression over and above perception of harm/threat (to self and to others)?
+
+```{r, increment-express, eval=FALSE}
+#Note: Creating composite scores will follow the same plan as explained in the previous section (i.e., Predictors of Anger Experience). The following models will be adjusted if/when the assumption of high correlation between composite items is not met.
+
+#A base model predicting anger expression from perceptions of harm/threat
+      expression_base_model <- lm(anger_express ~ harm.threat_self + harm.threat_other,
+                     data = df1)
+      summary(expression_base_model)
+      
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors separately. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+      #fairness/justification
+      expression_inc_model_fairness <- lm(anger_express ~ harm.threat_self + harm.threat_other + fair_just,
+                     data = df1)
+      summary(expression_inc_model_fairness)
+      
+      #perception of target's regret
+      expression_inc_model_regret <- lm(anger_express ~ harm.threat_self + harm.threat_other + person_regret,
+                     data = df1)
+      summary(expression_inc_model_regret)
+      
+```
+
+**Research Question 1b:** To what extent do the predictors of anger expression (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
+
+```{r, increment-express2, eval=FALSE}
+#A base model predicting anger expression from perceptions of harm/threat X anger type
+      expression_int_model <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition,
+                     data = df1)
+      summary(expression_int_model)
+
+#Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type. The two example code below represent models for the fairness/justification and perception of target's regret composites. Same will be done for all the predictors stated in the research question:
+      #fairness/justification
+      expression_int_inc_model_fairness <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition,
+                     data = df1)
+      summary(expression_int_inc_model_fairness)
+      
+      #perception of target's regret
+      expression_int_inc_model_regret <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + person_regret * Condition,
+                     data = df1)
+      summary(expression_int_inc_model_regret)
+```
+
+
+### Simultaneous Prediction
+
+**Research Question 2a:** What is the unique association between various characteristics of the anger eliciting event/person (i.e., perception of harm/threat to self and to others, perception of fairness/justification, perception of target’s regret, perception of target's tendency to apologize, causal attributions, norm violations, relationship closeness prior to the event) and participants’ anger expression?
+
+```{r, pred-express, eval=FALSE}
+
+  #Testing for multicolinearity: check for tolerance < .1 and VIFs > 5
+    express_model <- lm(anger_express ~ harm.threat_self + harm.threat_other + fair_just + person_regret + person_apologize + causal_attr + injunctive + descriptive + prior_closeness,
+                     data = df1)
+
+    olsrr::ols_vif_tol(express_model)
+    
+  #If any of the multicolinearity criteria is violated, evaluate the model and address the issue by dropping predictor(s) that are problematic. If no multicolinearity issue is detected, proceed to interpreting the model outcome:
+    
+    summary(express_model)
+```
+
+**Research Question 2b:** To what extent do the predictors of anger expressivity (based on the model above) vary depending on whether the anger event is perceived as justified or unjustified?
+
+```{r, pred-express-mod, eval=FALSE}
+express_model_interaction <- lm(anger_express ~ harm.threat_self * Condition + harm.threat_other * Condition + fair_just * Condition + person_regret * Condition + person_apologize * Condition + causal_attr * Condition + injunctive * Condition + descriptive * Condition + prior_closeness * Condition,
+                     data = df1)
+
+  summary(express_model_interaction)
+
+```
+
