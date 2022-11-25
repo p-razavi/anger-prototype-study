@@ -154,7 +154,7 @@ knitr::opts_chunk$set(echo = TRUE)
                                   Target = as.factor(group2),
                                   mean, se)
       levels(descripts$Anger) <- c("Justified", "Unjustified")
-      levels(descripts$Target) <- c("Other", "Self")
+      levels(descripts$Target) <- c("Other        ", "Self        ") #the spaces are a hacky way to adjust the width of the plot surface!
       
 #interaction plot - dot-whiskers and line plot
   harm_threat_p <- ggplot(
@@ -168,7 +168,7 @@ knitr::opts_chunk$set(echo = TRUE)
                 ggtitle("Harm and Threat") +
                 theme_bw() + 
                 labs(y="Perception of Harm and Threat", x = "Anger") +
-                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 10)) + 
+                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 12)) + 
                       scale_color_manual(values=met.brewer("Nizami", 2, direction=-1))      
 
     harm_threat_p
@@ -272,7 +272,7 @@ knitr::opts_chunk$set(echo = TRUE)
                 ggtitle("Norm Violation") +
                 theme_bw() + 
                 labs(y="Perception of Norm Violation", x = "Anger") +
-                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 10)) + 
+                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 12)) + 
                       scale_color_manual(values=met.brewer("Nizami", 2, direction=-1))      
 
     norms_p
