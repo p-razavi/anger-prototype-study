@@ -170,7 +170,6 @@ df_moral_relational <- df1 %>%
     select(starts_with("gw_")) %>% 
     psych::nfactors(n = 32) #4 components
 
-
 #PCA with 3 components (based on the outcome of the parallel analyses)
   pca_3_component <- df_moral_relational %>% 
                         select(starts_with("gw_")) %>%  
@@ -309,7 +308,36 @@ df_moral_relational <- df1 %>%
                     kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>% 
                     kableExtra::kable_paper(full_width = T) 
 
+  four_comp_outcome_i5[["loadings"]] %>% 
+                    as.data.frame() %>% 
+                    tibble::rownames_to_column("item") %>% 
+                    mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+                    select(Item, starts_with("RC")) %>% write.csv("moral_relational_pca.csv")
 ```
+
+Create scree plot, parallel analyses, and Velicor's MAP figures for the manuscript:
+
+```{r}
+#figure for the manuscript
+  df_moral_relational %>% 
+            select(starts_with("gw_")) %>% 
+            psych::scree(factors = FALSE, hline = .73)
+  df_moral_relational %>% 
+                      select(starts_with("gw_")) %>% 
+                      psych::fa.parallel(fa = "pc")
+  
+  velicor_map <- df_moral_relational %>% 
+                      select(starts_with("gw_")) %>% 
+                      psych::nfactors(n = 32)
+  plot(velicor_map[["map"]],
+       main = "Velicor's MAP",
+       xlab = "Number of Factos",
+       ylab = "MAP Index",
+       xlim=c(0,25), ylim=c(0,0.10),
+       type = "b")
+  abline(h=0.013, col="blue")
+```
+
 
 Based on the PCA results, scale scores will be created. 
 
@@ -327,11 +355,18 @@ Based on the PCA results, scale scores will be created.
   #df_moral_relational %>% 
   #  select(communal, sociable, smart, creative) %>% 
   #  apaTables::apa.cor.table(.,filename = "moral_relational_cor.doc", table.number = 1, show.conf.interval = T)
+  
 ```
 
 ## Comparison of Anger Variants
 
 ```{r, moral-relational-compare}
+#descriptives  
+  df_moral_relational %>% 
+    group_by(Condition) %>% 
+    select(communal, sociable, smart, creative) %>% 
+    summarise_all(list(mean, sd))
+
 #Communal
     df_moral_relational %>% 
         t.test(communal ~ Condition, data = .)
