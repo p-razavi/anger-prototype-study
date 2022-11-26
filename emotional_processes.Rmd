@@ -167,6 +167,36 @@ df_affect <- df1 %>%
                     kableExtra::kable_paper(full_width = F)
 
 
+  #to save the output in a .csv (for the manuscript table)
+  #four_comp_outcome_i3[["loadings"]] %>% 
+  #                  as.data.frame() %>% 
+  #                  tibble::rownames_to_column("item") %>% 
+  #                  mutate(Item = gsub("^.{0,3}", "", item)) %>% 
+  #                  select(Item, starts_with("RC")) %>% write.csv("affective_experience_pca.csv")
+
+```
+
+Create scree plot, parallel analyses, and Velicor's MAP figures for the manuscript:
+
+```{r}
+#figure for the manuscript
+  df_affect %>% 
+            select(starts_with("em_")) %>%  
+            psych::scree(factors = FALSE, hline = -1)
+  df_affect %>% 
+            select(starts_with("em_")) %>%
+                      psych::fa.parallel(fa = "pc")
+  
+  velicor_map <- df_affect %>% 
+                      select(starts_with("em_")) %>%
+                      psych::nfactors(n = 27)
+  plot(velicor_map[["map"]],
+       main = "Velicor's MAP",
+       xlab = "Number of Factos",
+       ylab = "MAP Index",
+       xlim=c(0,20), ylim=c(0,0.10),
+       type = "b")
+  abline(h=0.011, col="blue")
 ```
 
 Based on the PCA results, scale scores will be created. 
@@ -187,7 +217,20 @@ Based on the PCA results, scale scores will be created.
   #df_affect %>% 
   #  select(self_blame, hostility, forlorn, joy) %>% 
   #  apaTables::apa.cor.table(.,filename = "affect_cor.doc", table.number = 1, show.conf.interval = T)  
-  
+
+```
+
+## Comparison of Anger Variants
+
+```{r, affective-comparison}
+
+#descriptives  
+  df_affect %>% 
+    group_by(Condition) %>% 
+    select(self_blame, hostility, forlorn, joy) %>% 
+    summarise_all(list(mean, sd))
+
+
 #Compare conditions for each of the 4 components
   #self-blame
     df_affect %>% 
@@ -228,7 +271,7 @@ Based on the PCA results, scale scores will be created.
 
 **Hypothesis 1:** Participants are more likely to evaluate their own anger expression as “exaggerated” in the unjustified (vs. justified) anger condition.
 
-```{r, exag-express, eval=FALSE}
+```{r, exag-express}
 df1$behav_reac <- as.factor(df1$behav_reac)
 levels(df1$behav_reac) <- c("fully_concealed", "partly_concealed", "fully_expressed", "exaggerated")
 
