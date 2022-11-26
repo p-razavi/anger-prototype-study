@@ -101,7 +101,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 **Research Question:** Do the perceptions of the target as regretful and apologetic vary depending on whether they consider the anger event as justified or unjustified? 
 
-```{r, regret-apol, eval=FALSE}
+```{r, regret-apol}
   #Regret 
     df1 %>% 
         t.test(person_regret ~ Condition, data = .)
@@ -124,7 +124,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 **Hypothesis 1:** Relationship closeness deteriorates following an anger event, both “short-term” (i.e., comparing closeness before and immediately after the event) and “long-term” (i.e., comparing closeness before the event and at the time of the study).
 
-```{r closeness1, eval=FALSE}
+```{r closeness1}
 closeness_df <- df1 %>% 
                       select(ResponseId, Condition, prior_closeness, immed_closeness, now_closeness)
 
@@ -146,26 +146,41 @@ closeness_df_long <- closeness_df %>%
   closeness_model <- lmer(closeness ~ time * Condition + (1 | ResponseId),
                           data = closeness_df_long)
 
-  anova(closeness_model, type = "III") %>% knitr::kable()
+  anova(closeness_model, type = "III") 
+  effectsize::eta_squared(closeness_model)
 
 #comparing closeness (a) before vs. immediately after the event 
   pbkrtest.limit = 4000
   pairwise_mod <- emmeans::emmeans(closeness_model, pairwise ~ time, pbkrtest.limit = 4000)
   pairwise_mod[["contrasts"]][1]
+  #For reporting the effect size
+    effectsize::cohens_d(Pair(closeness_df$prior_closeness, closeness_df$immed_closeness) ~ 1, pooled_sd = FALSE)
 
 #comparing closeness (b) before vs. now
   pairwise_mod[["contrasts"]][2]
+  #For reporting the effect size
+    effectsize::cohens_d(Pair(closeness_df$prior_closeness, closeness_df$now_closeness) ~ 1, pooled_sd = FALSE)
 
 ```
 
 **Hypothesis 2:** The long-term deterioration of relationship closeness is stronger for justified (vs. unjustified) anger experiences.
 
-```{r, closeness2, eval=FALSE}
+```{r, closeness2}
+summary(closeness_model) #the time1:Condition1 demonstrates the significant interaction between time (prior vs. now) and anger type
+
 longterm_mod <- emmeans::emmeans(closeness_model, pairwise ~ time | Condition, pbkrtest.limit = 4000)
   
   #justified: prior vs. now
   longterm_mod[["contrasts"]][2]
   #not justified: prior vs. now
   longterm_mod[["contrasts"]][5]
-
+  #For the reporting of the effect sizes  
+  closeness_df %>% 
+    filter(Condition == "justified") %>% 
+    summarise(d = effectsize::cohens_d(Pair(prior_closeness, now_closeness) ~ 1, pooled_sd = FALSE, data = .))
+  
+  closeness_df %>% 
+    filter(Condition == "nonjustified") %>% 
+    summarise(d = effectsize::cohens_d(Pair(prior_closeness, now_closeness) ~ 1, pooled_sd = FALSE, data = .))
+    
 ```
