@@ -317,7 +317,7 @@ levels(df1$behav_reac) <- c("fully_concealed", "partly_concealed", "fully_expres
 
 **Hypothesis 2:** The strength of the experience-expression relation tamps down as the anger intensity increases, and this deceleration is stronger for justified anger. 
 
-```{r, feel-exp-relation, eval=FALSE}
+```{r, feel-exp-relation}
 df_feel_exp <- df1 %>% 
                 select(ResponseId, Condition, anger_feel, anger_express) %>% 
                 mutate(anger_feel_c = as.double(scale(anger_feel, scale = FALSE)),
@@ -327,17 +327,20 @@ df_feel_exp <- df1 %>%
   mod1_linear <- lm(anger_express ~ anger_feel_c,
                     data = df_feel_exp)
   summary(mod1_linear)
+  confint(mod1_linear)
 
 #A curvilinear model testing the feel-express relation: This is the test of the first part of the hypothesis. 
  
   mod1_nonlinear <- lm(anger_express ~ anger_feel_c + anger_feel_c_sq,
                     data = df_feel_exp)
   summary(mod1_nonlinear)
+  confint(mod1_nonlinear)
   anova(mod1_linear, mod1_nonlinear)
 
 #If the curvilinear relation is significant, the moderating role of Condition for this curvilinear relation will be tested, which will correspond to the second part of the hypothesis.   
   mod2_nonlinear <- lm(anger_express ~ anger_feel_c * Condition + anger_feel_c_sq * Condition,
                     data = df_feel_exp)
   summary(mod2_nonlinear)
+  confint(mod2_nonlinear)
 
 ```
