@@ -150,6 +150,7 @@ df1 <- df1 %>%
       experience_base_model <- lm(anger_feel ~ harm.threat_self + harm.threat_other,
                      data = df1)
       summary(experience_base_model)
+      confint(experience_base_model) %>% round(2)
       
 #Testing the incremental associations (above and beyond harm/threat) for each of the other predictors separately:
       #fairness/justification
@@ -242,17 +243,21 @@ Reporting the models in APA style (for the manuscript)
       experience_int_model <- lm(anger_feel ~ harm.threat_self * Condition + harm.threat_other * Condition,
                      data = df1)
       summary(experience_int_model)
+      confint(experience_int_model) %>% round(2)
 
 #Testing the incremental associations (above and beyond harm/threat) for each of the other predictors interacting with the anger type:
       #fairness/justification
       experience_int_inc_model_fairness <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + fair_just*Condition,
                      data = df1)
       summary(experience_int_inc_model_fairness)
+      confint(experience_int_inc_model_fairness) %>% round(2)
+      anova(experience_int_model, experience_int_inc_model_fairness)
       
       #perception of target's regret
       experience_int_inc_model_regret <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + person_regret*Condition,
                      data = df1)
       summary(experience_int_inc_model_regret)
+      anova(experience_int_model_listwise1, experience_int_inc_model_regret)
       
       #perception of target's tendency to apologize
       experience_int_inc_model_apology <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + person_apologize*Condition,
@@ -268,6 +273,7 @@ Reporting the models in APA style (for the manuscript)
       experience_int_inc_model_stable <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + behave_same*Condition,
                      data = df1)
       summary(experience_int_inc_model_stable)
+      confint(experience_int_inc_model_stable)
 
       #behavior violated injunctive norms
       experience_int_inc_model_injunctive <- lm(anger_feel ~ harm.threat_self*Condition + harm.threat_other*Condition + injunctive*Condition,
