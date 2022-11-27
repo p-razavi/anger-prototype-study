@@ -166,7 +166,7 @@ closeness_df_long <- closeness_df %>%
 **Hypothesis 2:** The long-term deterioration of relationship closeness is stronger for justified (vs. unjustified) anger experiences.
 
 ```{r, closeness2}
-summary(closeness_model) #the time1:Condition1 demonstrates the significant interaction between time (prior vs. now) and anger type
+summary(closeness_model) #The time1:Condition1 interaction demonstrates the significant interaction between time (prior vs. now) and anger type.
 
 longterm_mod <- emmeans::emmeans(closeness_model, pairwise ~ time | Condition, pbkrtest.limit = 4000)
   
@@ -174,7 +174,8 @@ longterm_mod <- emmeans::emmeans(closeness_model, pairwise ~ time | Condition, p
   longterm_mod[["contrasts"]][2]
   #not justified: prior vs. now
   longterm_mod[["contrasts"]][5]
-  #For the reporting of the effect sizes  
+  
+  #For the reporting of the effect sizes:  
   closeness_df %>% 
     filter(Condition == "justified") %>% 
     summarise(d = effectsize::cohens_d(Pair(prior_closeness, now_closeness) ~ 1, pooled_sd = FALSE, data = .))
@@ -184,3 +185,39 @@ longterm_mod <- emmeans::emmeans(closeness_model, pairwise ~ time | Condition, p
     summarise(d = effectsize::cohens_d(Pair(prior_closeness, now_closeness) ~ 1, pooled_sd = FALSE, data = .))
     
 ```
+
+Create a figure for the manuscript:
+
+```{r, closeness-fig}
+#df with descriptive summary
+      descripts <- psych::describeBy(closeness_df_long$closeness, 
+                         group = list(closeness_df_long$Condition, closeness_df_long$time), mat = TRUE)   %>% 
+                        select(group1, group2, mean, se) %>% 
+                        transmute(Anger = as.factor(group1),
+                                  Time = as.factor(group2),
+                                  mean, se)
+      levels(descripts$Anger) <- c("Justified", "Unjustified")
+      levels(descripts$Time) <- c("Immediately After", "Now", "Prior")
+      descripts$Time <- relevel(descripts$Time, ref = "Prior")
+      
+#figure    
+  closeness_p <- ggplot(
+                descripts,
+                aes(x = Time, color = Anger, group = Anger, y = mean,
+                    ymin = mean-se, ymax = mean+se)) + 
+                geom_line(position = position_dodge(0.1)) +
+                geom_errorbar(position = position_dodge(0.1), width = 0.12) +
+                geom_point(aes(color = Anger), position = position_dodge(0.1), size = .8) +
+                ylim(1, 5) +
+                ggtitle(" ") +
+                theme_bw() + 
+                labs(y="Relationship Closeness", x = " ") +
+                theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 12),
+                                         axis.text.x= element_text(size = 12)) + 
+                      scale_color_manual(values=met.brewer("Nizami", 2, direction=-1)) 
+  closeness_p
+
+#code to save the figure for the manuscript        
+  #ggsave(plot = closeness_p, width = 7, height = 3.5, dpi = 300, filename = "closeness_p.png")
+```
+
